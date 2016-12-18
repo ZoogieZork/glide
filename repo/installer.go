@@ -378,9 +378,19 @@ func (i *Installer) Export(conf *cfg.Config) error {
 		return err
 	}
 
-	err = os.Rename(vp, i.VendorPath())
-	if terr, ok := err.(*os.LinkError); ok {
-		return fixcle(vp, i.VendorPath(), terr)
+	//HACK: On Windows, the directory rename may initially fail due to an
+	//      "Access is denied" error. As a hack, we retry the rename
+	//      a few times.
+	for tries := 0; tries < 3; tries++ {
+		err = os.Rename(vp, i.VendorPath())
+		if terr, ok := err.(*os.LinkError); ok {
+			err = fixcle(vp, i.VendorPath(), terr)
+		}
+		if err == nil {
+			break
+		}
+		msg.Info("Failed to rename vendor directory (retrying): %v", err)
+		time.Sleep(3 * time.Second)
 	}
 
 	return err
